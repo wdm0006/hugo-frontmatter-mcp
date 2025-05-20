@@ -26,21 +26,6 @@ A Model Context Protocol (MCP) server for managing and automating frontmatter op
    uv run --with mcp --with python-frontmatter hugo_frontmatter_mcp.py
    ```
 
-### Example: Get Frontmatter
-
-```python
-from mcp.client import MCPClient
-client = MCPClient("http://localhost:8000")
-result = client.call("get_frontmatter", file_path="/absolute/path/to/post.md")
-print(result)
-```
-
-### Example: Add a Tag
-
-```python
-result = client.call("add_tag", file_path="/absolute/path/to/post.md", tag_to_add="newtag")
-```
-
 ## API / Tools
 
 The following tools are available:
