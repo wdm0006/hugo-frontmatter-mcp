@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hugo-frontmatter-mcp"
+version = "0.1.0"
+description = "MCP server for managing and automating Hugo markdown frontmatter."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+   { name="Will McGinnis", email="will@mcginniscommawill.com" },
+]
+
+dependencies = [
+    "mcp[cli]",
+    "python-frontmatter",
+    "pyyaml"
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest",
+    "uv"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/wdm0006/hugo-frontmatter-mcp"
+"Bug Tracker" = "https://github.com/wdm0006/hugo-frontmatter-mcp/issues"
+
+[tool.ruff]
+line-length = 120
+select = ["E", "W", "F", "I", "C", "B"]
+ignore = ["E501", "C901"]
+
+[tool.ruff.format]
+quote-style = "double" 
