@@ -1,5 +1,7 @@
 # Hugo Frontmatter MCP
 
+[![smithery badge](https://smithery.ai/badge/@wdm0006/hugo-frontmatter-mcp)](https://smithery.ai/server/@wdm0006/hugo-frontmatter-mcp)
+
 A Model Context Protocol (MCP) server for managing and automating frontmatter operations in [Hugo](https://gohugo.io/) Markdown files. This tool provides a set of programmatic APIs for reading, updating, and validating YAML frontmatter fields, as well as batch operations for tags, images, and date formats across directories.
 
 ## Features
@@ -12,6 +14,15 @@ A Model Context Protocol (MCP) server for managing and automating frontmatter op
 
 ## Installation & Usage
 
+### Installing via Smithery
+
+To install hugo-frontmatter-mcp for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@wdm0006/hugo-frontmatter-mcp):
+
+```bash
+npx -y @smithery/cli install @wdm0006/hugo-frontmatter-mcp --client claude
+```
+
+### Manual Installation
 1. **Clone the repository:**
    ```sh
    git clone https://github.com/wdm0006/hugo-frontmatter-mcp.git
