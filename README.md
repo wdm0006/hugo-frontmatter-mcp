@@ -12,7 +12,18 @@ A Model Context Protocol (MCP) server for managing and automating frontmatter op
 - Batch operations: list all tags, find posts by tag, rename tags, validate date formats
 - Designed for automation and integration with other MCP tools
 
-## Installation & Usage
+## Install
+
+```bash
+# Run directly from GitHub (no install needed)
+uvx --from git+https://github.com/wdm0006/hugo-frontmatter-mcp hugo-frontmatter-mcp
+
+# Or install from source
+git clone https://github.com/wdm0006/hugo-frontmatter-mcp
+cd hugo-frontmatter-mcp
+uv sync
+uv run hugo_frontmatter_mcp.py
+```
 
 ### Installing via Smithery
 
@@ -22,20 +33,18 @@ To install hugo-frontmatter-mcp for Claude Desktop automatically via [Smithery](
 npx -y @smithery/cli install @wdm0006/hugo-frontmatter-mcp --client claude
 ```
 
-### Manual Installation
-1. **Clone the repository:**
-   ```sh
-   git clone https://github.com/wdm0006/hugo-frontmatter-mcp.git
-   cd hugo-frontmatter-mcp
-   ```
-2. **Install [uv](https://github.com/astral-sh/uv) if you don't have it:**
-   ```sh
-   pip install uv
-   ```
-3. **Run the MCP server:**
-   ```sh
-   uv run --with mcp --with python-frontmatter hugo_frontmatter_mcp.py
-   ```
+## MCP Client Configuration
+
+```json
+{
+  "mcpServers": {
+    "hugo-frontmatter": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/wdm0006/hugo-frontmatter-mcp", "hugo-frontmatter-mcp"]
+    }
+  }
+}
+```
 
 ## API / Tools
 
