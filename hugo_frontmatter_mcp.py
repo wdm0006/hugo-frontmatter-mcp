@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # dependencies = [
-#   "mcp[cli]>=1.7.0,<2.0.0",
+#   "fastmcp>=2.14.0,<3.0.0",
 #   "python-frontmatter>=1.0.0,<2.0.0"
 # ]
 # ///
@@ -15,7 +15,7 @@ from datetime import datetime as dt # Alias for datetime
 import frontmatter # Handles reading and writing frontmatter
 from yaml import YAMLError # To catch parsing errors specifically
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 mcp_server = FastMCP(
     name="HugoFrontmatterMCP",
@@ -232,8 +232,7 @@ def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> D
             files_processed += 1
             post, load_error = _load_post(str(md_file_path_obj))
             if load_error:
-                print(f"Skipping file (list_tags_in_directory) due to error: {str(md_file_path_obj)} - {load_error['error']}") 
-                continue 
+                continue
             
             if post and isinstance(post.metadata.get('tags'), list):
                 files_with_tags +=1
@@ -241,7 +240,7 @@ def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> D
                     if isinstance(tag, str):
                         tag_counter[tag] += 1
                     else:
-                        print(f"Warning (list_tags_in_directory): Non-string tag found in {str(md_file_path_obj)}: {tag}")
+                        pass
 
     return {
         "directory_path": directory_path_str,
@@ -271,7 +270,6 @@ def find_posts_by_tag(directory_path_str: str, tag_to_find: str, recursive: bool
             files_processed += 1
             post, load_error = _load_post(str(md_file_path_obj))
             if load_error:
-                print(f"Skipping file (find_posts_by_tag) due to error: {str(md_file_path_obj)} - {load_error['error']}")
                 continue
             
             if post and isinstance(post.metadata.get('tags'), list):
@@ -311,9 +309,8 @@ def rename_tag_in_directory(directory_path_str: str, old_tag: str, new_tag: str,
             files_scanned += 1
             post, load_error = _load_post(str(md_file_path_obj))
             if load_error:
-                load_error["file_path"] = str(md_file_path_obj) # Ensure file_path is in error dict
+                load_error["file_path"] = str(md_file_path_obj)
                 individual_errors.append(load_error)
-                print(f"Skipping file (rename_tag) due to load error: {str(md_file_path_obj)}")
                 continue
 
             if post and isinstance(post.metadata.get('tags'), list):
@@ -330,9 +327,8 @@ def rename_tag_in_directory(directory_path_str: str, old_tag: str, new_tag: str,
                 if made_change:
                     save_error = _save_post(str(md_file_path_obj), post)
                     if save_error:
-                        save_error["file_path"] = str(md_file_path_obj) # Ensure file_path is in error dict
+                        save_error["file_path"] = str(md_file_path_obj)
                         individual_errors.append(save_error)
-                        print(f"Error saving file (rename_tag): {str(md_file_path_obj)}")
                     else:
                         modified_files_paths.append(str(md_file_path_obj))
             elif post and old_tag in str(post.metadata.get('tags', '')): # Handle single tag as string
@@ -378,7 +374,6 @@ def validate_date_formats(
             files_scanned += 1
             post, load_error = _load_post(str(md_file_path_obj))
             if load_error:
-                print(f"Skipping file (validate_date) due to error: {str(md_file_path_obj)} - {load_error['error']}")
                 invalid_dates_info.append({
                     "file_path": str(md_file_path_obj),
                     "value": "N/A - Load Error",
@@ -421,5 +416,5 @@ def validate_date_formats(
 
 
 if __name__ == "__main__":
-    print(f"Starting Hugo Frontmatter MCP server... Accessible via mcp[cli]. Expects absolute paths.")
+    print(f"Starting Hugo Frontmatter MCP server. Expects absolute paths.")
     mcp_server.run() 
