@@ -364,6 +364,14 @@ class TestRenameTagInDirectory:
 
 
 class TestValidateDateFormats:
+    def test_native_yaml_date(self, tmp_path):
+        (tmp_path / "post.md").write_text("---\ndate: 2025-06-15\n---\n")
+
+        result = validate_date_formats(str(tmp_path))
+
+        assert result["files_with_field"] == 1
+        assert result["invalid_date_entries"] == []
+
     def test_valid_dates(self):
         d = _create_md_dir(
             [

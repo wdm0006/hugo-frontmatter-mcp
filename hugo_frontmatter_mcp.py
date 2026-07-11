@@ -8,7 +8,8 @@
 
 import pathlib
 from collections import Counter
-from datetime import datetime as dt  # Alias for datetime
+from datetime import date
+from datetime import datetime as dt
 from typing import Any, Dict, Optional, Tuple
 
 import frontmatter  # Handles reading and writing frontmatter
@@ -434,10 +435,7 @@ def validate_date_formats(
                         invalid_dates_info.append(
                             {"file_path": str(md_file_path_obj), "value": date_value, "error": str(e)}
                         )
-                elif isinstance(
-                    date_value, dt
-                ):  # If it's already a datetime object (less likely from raw frontmatter but possible)
-                    # It inherently has a valid format internally if it's a datetime object
+                elif isinstance(date_value, (dt, date)):
                     pass
                 else:
                     invalid_dates_info.append(
