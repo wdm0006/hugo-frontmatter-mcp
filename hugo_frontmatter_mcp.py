@@ -265,12 +265,15 @@ def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> D
     file_pattern = "**/*.md" if recursive else "*.md"
     files_processed = 0
     files_with_tags = 0
+    errors = []
 
     for md_file_path_obj in directory_path.glob(file_pattern):
         if md_file_path_obj.is_file():
             files_processed += 1
             post, load_error = _load_post(str(md_file_path_obj))
             if load_error:
+                load_error["file_path"] = str(md_file_path_obj)
+                errors.append(load_error)
                 continue
 
             if post and isinstance(post.metadata.get("tags"), list):
@@ -287,6 +290,7 @@ def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> D
         "files_processed": files_processed,
         "files_with_tags": files_with_tags,
         "tag_counts": dict(tag_counter),
+        "errors": errors,
     }
 
 
@@ -303,12 +307,15 @@ def find_posts_by_tag(directory_path_str: str, tag_to_find: str, recursive: bool
     matching_files = []
     file_pattern = "**/*.md" if recursive else "*.md"
     files_processed = 0
+    errors = []
 
     for md_file_path_obj in directory_path.glob(file_pattern):
         if md_file_path_obj.is_file():
             files_processed += 1
             post, load_error = _load_post(str(md_file_path_obj))
             if load_error:
+                load_error["file_path"] = str(md_file_path_obj)
+                errors.append(load_error)
                 continue
 
             if post and isinstance(post.metadata.get("tags"), list):
@@ -321,6 +328,7 @@ def find_posts_by_tag(directory_path_str: str, tag_to_find: str, recursive: bool
         "recursive": recursive,
         "files_processed": files_processed,
         "matching_files": matching_files,
+        "errors": errors,
     }
 
 

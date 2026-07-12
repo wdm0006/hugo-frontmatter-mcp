@@ -296,6 +296,27 @@ class TestListTagsInDirectory:
         r = list_tags_in_directory("/tmp/nonexistent_dir_abc123")
         assert "error" in r
 
+    def test_reports_malformed_files(self):
+        d = _create_md_dir(
+            [
+                ({"tags": ["python"]}, "valid post"),
+            ]
+        )
+        bad = os.path.join(d, "broken.md")
+        with open(bad, "w") as f:
+            f.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
+        try:
+            r = list_tags_in_directory(d)
+            # Valid file is still counted correctly.
+            assert r["tag_counts"]["python"] == 1
+            # The malformed file is reported rather than silently skipped.
+            assert len(r["errors"]) == 1
+            assert r["errors"][0]["file_path"] == bad
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
 
 class TestFindPostsByTag:
     def test_finds_matching_posts(self):
@@ -323,6 +344,27 @@ class TestFindPostsByTag:
         try:
             r = find_posts_by_tag(d, "nonexistent")
             assert len(r["matching_files"]) == 0
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_reports_malformed_files(self):
+        d = _create_md_dir(
+            [
+                ({"tags": ["python"]}, "valid post"),
+            ]
+        )
+        bad = os.path.join(d, "broken.md")
+        with open(bad, "w") as f:
+            f.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
+        try:
+            r = find_posts_by_tag(d, "python")
+            # Valid matching file is still found.
+            assert len(r["matching_files"]) == 1
+            # The malformed file is reported rather than silently skipped.
+            assert len(r["errors"]) == 1
+            assert r["errors"][0]["file_path"] == bad
         finally:
             for f in pathlib.Path(d).glob("*.md"):
                 f.unlink()
