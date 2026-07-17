@@ -49,7 +49,7 @@ def _save_post(file_path_str: str, post: frontmatter.Post) -> Optional[Dict[str,
     if not file_path.is_absolute():
         return {"error": f"Path for saving must be absolute: {file_path_str}", "file_path": file_path_str}
     try:
-        frontmatter.dump(post, file_path_str)
+        frontmatter.dump(post, file_path_str, sort_keys=False)
         return None
     except IOError as e:
         return {"error": f"Failed to write file: {str(e)}", "file_path": file_path_str}
