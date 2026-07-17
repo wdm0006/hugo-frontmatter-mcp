@@ -108,6 +108,34 @@ class TestSetTitle:
         finally:
             os.unlink(p)
 
+    def test_preserves_frontmatter_key_order(self, tmp_path: pathlib.Path):
+        post_path = tmp_path / "post.md"
+        post_path.write_text(
+            """---
+title: My Post
+date: '2024-01-15'
+draft: false
+tags: [python, hugo]
+description: Hello
+---
+Sample content.
+"""
+        )
+
+        set_title(str(post_path), "My New Post")
+
+        raw_post = post_path.read_text()
+        assert "title: My New Post" in raw_post
+        frontmatter_lines = raw_post.split("---", 2)[1].strip().splitlines()
+        top_level_keys = [line.split(":", 1)[0] for line in frontmatter_lines if ":" in line and not line[0].isspace()]
+        assert top_level_keys == [
+            "title",
+            "date",
+            "draft",
+            "tags",
+            "description",
+        ]
+
     def test_wrong_type(self):
         p = _create_md({"title": "Old"})
         try:
