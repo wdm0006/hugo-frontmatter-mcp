@@ -253,6 +253,15 @@ def remove_image(file_path: str, image_path_to_remove: str) -> Dict[str, Any]:
 # --- MCP Tools (Batch Directory Operations) ---
 
 
+def _tags_as_list(metadata: Dict[str, Any]) -> list:
+    tags = metadata.get("tags")
+    if isinstance(tags, list):
+        return tags
+    if isinstance(tags, str) and tags.strip():
+        return [tags]
+    return []
+
+
 def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> Dict[str, Any]:
     """Scans .md files in a directory for 'tags' in their frontmatter and returns tag counts. Expects an absolute directory path."""
     directory_path = pathlib.Path(directory_path_str)
@@ -276,9 +285,11 @@ def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> D
                 errors.append(load_error)
                 continue
 
-            if post and isinstance(post.metadata.get("tags"), list):
+            tags_value = post.metadata.get("tags") if post else None
+            tags = _tags_as_list(post.metadata) if post else []
+            if isinstance(tags_value, list) or tags:
                 files_with_tags += 1
-                for tag in post.metadata["tags"]:
+                for tag in tags:
                     if isinstance(tag, str):
                         tag_counter[tag] += 1
                     else:
@@ -318,9 +329,8 @@ def find_posts_by_tag(directory_path_str: str, tag_to_find: str, recursive: bool
                 errors.append(load_error)
                 continue
 
-            if post and isinstance(post.metadata.get("tags"), list):
-                if tag_to_find in post.metadata["tags"]:
-                    matching_files.append(str(md_file_path_obj))
+            if post and tag_to_find in _tags_as_list(post.metadata):
+                matching_files.append(str(md_file_path_obj))
 
     return {
         "directory_path": directory_path_str,
