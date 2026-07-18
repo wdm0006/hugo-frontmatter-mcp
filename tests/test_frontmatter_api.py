@@ -303,11 +303,13 @@ class TestListTagsInDirectory:
                 ({"tags": ["python", "mcp"]}, "post 1"),
                 ({"tags": ["python", "ai"]}, "post 2"),
                 ({"tags": ["mcp"]}, "post 3"),
+                ({"tags": []}, "post 4"),
             ]
         )
         try:
             r = list_tags_in_directory(d)
-            assert r["files_processed"] == 3
+            assert r["files_processed"] == 4
+            assert r["files_with_tags"] == 4
             assert r["tag_counts"]["python"] == 2
             assert r["tag_counts"]["mcp"] == 2
             assert r["tag_counts"]["ai"] == 1
@@ -319,6 +321,17 @@ class TestListTagsInDirectory:
     def test_relative_path_error(self):
         r = list_tags_in_directory("relative/dir")
         assert "error" in r
+
+    def test_counts_bare_string_tag(self):
+        d = _create_md_dir([({"tags": "python"}, "post")])
+        try:
+            r = list_tags_in_directory(d)
+            assert r["files_with_tags"] == 1
+            assert r["tag_counts"] == {"python": 1}
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
 
     def test_missing_dir_error(self):
         r = list_tags_in_directory("/tmp/nonexistent_dir_abc123")
@@ -372,6 +385,16 @@ class TestFindPostsByTag:
         try:
             r = find_posts_by_tag(d, "nonexistent")
             assert len(r["matching_files"]) == 0
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_finds_post_with_bare_string_tag(self):
+        d = _create_md_dir([({"tags": "python"}, "post")])
+        try:
+            r = find_posts_by_tag(d, "python")
+            assert r["matching_files"] == [os.path.join(d, "post0.md")]
         finally:
             for f in pathlib.Path(d).glob("*.md"):
                 f.unlink()
