@@ -491,7 +491,6 @@ def validate_date_formats(
     }
 
 
-
 def main():
     """Entry point for the Hugo Frontmatter MCP server."""
     print("Starting Hugo Frontmatter MCP server. Expects absolute paths.")
