@@ -60,6 +60,7 @@ def _save_post(file_path_str: str, post: frontmatter.Post) -> Optional[Dict[str,
 # --- MCP Tools (Single File Operations) ---
 
 
+@mcp_server.tool()
 def get_frontmatter(file_path: str) -> Dict[str, Any]:
     """Reads and returns the entire YAML frontmatter from the specified Markdown file. Expects an absolute file path."""
     post, error = _load_post(file_path)
@@ -70,6 +71,7 @@ def get_frontmatter(file_path: str) -> Dict[str, Any]:
     return {"error": "Unknown error loading post", "file_path": file_path}
 
 
+@mcp_server.tool()
 def get_field(file_path: str, field_name: str) -> Dict[str, Any]:
     """Retrieves the value of a specific field from the frontmatter of a file. Expects an absolute file path."""
     post, error = _load_post(file_path)
@@ -113,26 +115,31 @@ def _set_specific_field(
     }
 
 
+@mcp_server.tool()
 def set_title(file_path: str, title: str) -> Dict[str, Any]:
     """Sets the 'title' (string) in the frontmatter. Expects an absolute file path."""
     return _set_specific_field(file_path, "title", title, str)
 
 
+@mcp_server.tool()
 def set_date(file_path: str, date_value: str) -> Dict[str, Any]:
     """Sets the 'date' (string, e.g., YYYY-MM-DD) in the frontmatter. Expects an absolute file path."""
     return _set_specific_field(file_path, "date", date_value, str)
 
 
+@mcp_server.tool()
 def set_publish_date(file_path: str, publish_date_value: str) -> Dict[str, Any]:
     """Sets the 'publishDate' (string, e.g., YYYY-MM-DD) in the frontmatter. Expects an absolute file path."""
     return _set_specific_field(file_path, "publishDate", publish_date_value, str)
 
 
+@mcp_server.tool()
 def set_description(file_path: str, description: str) -> Dict[str, Any]:
     """Sets the 'description' (string) in the frontmatter. Expects an absolute file path."""
     return _set_specific_field(file_path, "description", description, str)
 
 
+@mcp_server.tool()
 def set_draft_status(file_path: str, draft_status: bool) -> Dict[str, Any]:
     """Sets the 'draft' status (boolean) in the frontmatter. Expects an absolute file path."""
     return _set_specific_field(file_path, "draft", draft_status, bool)
@@ -208,6 +215,7 @@ def _modify_list_field(action: str, file_path: str, field_name: str, item_value:
     }
 
 
+@mcp_server.tool()
 def add_tag(file_path: str, tag_to_add: str) -> Dict[str, Any]:
     """Adds a tag to the 'tags' list in the frontmatter. Expects an absolute file path."""
     if not isinstance(tag_to_add, str) or not tag_to_add.strip():
@@ -215,6 +223,7 @@ def add_tag(file_path: str, tag_to_add: str) -> Dict[str, Any]:
     return _modify_list_field(action="add", file_path=file_path, field_name="tags", item_value=tag_to_add)
 
 
+@mcp_server.tool()
 def remove_tag(file_path: str, tag_to_remove: str) -> Dict[str, Any]:
     """Removes a tag from the 'tags' list in the frontmatter. Expects an absolute file path."""
     if not isinstance(tag_to_remove, str) or not tag_to_remove.strip():
@@ -226,6 +235,7 @@ def remove_tag(file_path: str, tag_to_remove: str) -> Dict[str, Any]:
     return _modify_list_field(action="remove", file_path=file_path, field_name="tags", item_value=tag_to_remove)
 
 
+@mcp_server.tool()
 def add_image(file_path: str, image_path_to_add: str) -> Dict[str, Any]:
     """Adds an image path to the 'images' list in the frontmatter. Expects an absolute file path for the post."""
     if not isinstance(image_path_to_add, str) or not image_path_to_add.strip():
@@ -237,6 +247,7 @@ def add_image(file_path: str, image_path_to_add: str) -> Dict[str, Any]:
     return _modify_list_field(action="add", file_path=file_path, field_name="images", item_value=image_path_to_add)
 
 
+@mcp_server.tool()
 def remove_image(file_path: str, image_path_to_remove: str) -> Dict[str, Any]:
     """Removes an image path from the 'images' list in the frontmatter. Expects an absolute file path for the post."""
     if not isinstance(image_path_to_remove, str) or not image_path_to_remove.strip():
@@ -262,6 +273,7 @@ def _tags_as_list(metadata: Dict[str, Any]) -> list:
     return []
 
 
+@mcp_server.tool()
 def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> Dict[str, Any]:
     """Scans .md files in a directory for 'tags' in their frontmatter and returns tag counts. Expects an absolute directory path."""
     directory_path = pathlib.Path(directory_path_str)
@@ -305,6 +317,7 @@ def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> D
     }
 
 
+@mcp_server.tool()
 def find_posts_by_tag(directory_path_str: str, tag_to_find: str, recursive: bool = True) -> Dict[str, Any]:
     """Finds all posts containing a specific tag. Expects an absolute directory path."""
     directory_path = pathlib.Path(directory_path_str)
@@ -342,6 +355,7 @@ def find_posts_by_tag(directory_path_str: str, tag_to_find: str, recursive: bool
     }
 
 
+@mcp_server.tool()
 def rename_tag_in_directory(
     directory_path_str: str, old_tag: str, new_tag: str, recursive: bool = True
 ) -> Dict[str, Any]:
@@ -414,6 +428,7 @@ def rename_tag_in_directory(
     }
 
 
+@mcp_server.tool()
 def validate_date_formats(
     directory_path_str: str, field_name: str = "date", expected_format_str: str = "%Y-%m-%d", recursive: bool = True
 ) -> Dict[str, Any]:
@@ -474,24 +489,6 @@ def validate_date_formats(
         "files_with_field": files_with_field_count,
         "invalid_date_entries": invalid_dates_info,
     }
-
-
-# --- Register tools with MCP server (explicit registration keeps functions callable) ---
-mcp_server.tool()(get_frontmatter)
-mcp_server.tool()(get_field)
-mcp_server.tool()(set_title)
-mcp_server.tool()(set_date)
-mcp_server.tool()(set_publish_date)
-mcp_server.tool()(set_description)
-mcp_server.tool()(set_draft_status)
-mcp_server.tool()(add_tag)
-mcp_server.tool()(remove_tag)
-mcp_server.tool()(add_image)
-mcp_server.tool()(remove_image)
-mcp_server.tool()(list_tags_in_directory)
-mcp_server.tool()(find_posts_by_tag)
-mcp_server.tool()(rename_tag_in_directory)
-mcp_server.tool()(validate_date_formats)
 
 
 def main():
