@@ -4,6 +4,7 @@ import tempfile
 
 import frontmatter
 
+import hugo_frontmatter_mcp
 from hugo_frontmatter_mcp import (
     add_image,
     add_tag,
@@ -11,6 +12,7 @@ from hugo_frontmatter_mcp import (
     get_field,
     get_frontmatter,
     list_tags_in_directory,
+    main,
     remove_image,
     remove_tag,
     rename_tag_in_directory,
@@ -514,3 +516,17 @@ class TestValidateDateFormats:
     def test_relative_path_error(self):
         r = validate_date_formats("relative/dir")
         assert "error" in r
+
+
+# ---------------------------------------------------------------------------
+# Entry point (stdio transport keeps stdout reserved for JSON-RPC)
+# ---------------------------------------------------------------------------
+
+
+class TestMain:
+    def test_startup_message_goes_to_stderr(self, monkeypatch, capsys):
+        monkeypatch.setattr(hugo_frontmatter_mcp.mcp_server, "run", lambda: None)
+        main()
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "Starting Hugo Frontmatter MCP server" in captured.err

@@ -7,6 +7,7 @@
 # ///
 
 import pathlib
+import sys
 from collections import Counter
 from datetime import date
 from datetime import datetime as dt
@@ -493,7 +494,7 @@ def validate_date_formats(
 
 def main():
     """Entry point for the Hugo Frontmatter MCP server."""
-    print("Starting Hugo Frontmatter MCP server. Expects absolute paths.")
+    print("Starting Hugo Frontmatter MCP server. Expects absolute paths.", file=sys.stderr)
     mcp_server.run()
 
 
