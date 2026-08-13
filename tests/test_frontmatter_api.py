@@ -447,6 +447,25 @@ class TestRenameTagInDirectory:
                 f.unlink()
             os.rmdir(d)
 
+    def test_skips_symlinks(self, tmp_path):
+        content_dir = tmp_path / "content"
+        content_dir.mkdir()
+        outside = tmp_path / "outside.md"
+        frontmatter.dump(frontmatter.Post("outside", tags=["old"]), str(outside))
+        outside_bytes = outside.read_bytes()
+
+        frontmatter.dump(frontmatter.Post("inside", tags=["old"]), str(content_dir / "post.md"))
+        (content_dir / "linked.md").symlink_to(outside)
+
+        result = rename_tag_in_directory(str(content_dir), "old", "new")
+
+        assert result["modified_files"] == [str(content_dir / "post.md")]
+        assert outside.read_bytes() == outside_bytes
+        symlink_errors = [e for e in result["errors"] if e["file_path"] == str(content_dir / "linked.md")]
+        assert len(symlink_errors) == 1
+        assert "symlink" in symlink_errors[0]["error"].lower()
+        assert frontmatter.load(str(content_dir / "post.md")).metadata["tags"] == ["new"]
+
     def test_same_tag_noop(self):
         d = _create_md_dir([({"tags": ["a"]}, "p")])
         try:
