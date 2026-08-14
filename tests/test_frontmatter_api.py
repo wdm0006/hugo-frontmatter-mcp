@@ -153,6 +153,34 @@ class TestSetDate:
         try:
             r = set_date(p, "2025-06-15")
             assert r["new_value"] == "2025-06-15"
+            assert "warning" not in r
+        finally:
+            os.unlink(p)
+
+    def test_warns_for_invalid_format_after_writing(self):
+        p = _create_md({"date": "2024-01-01"})
+        try:
+            r = set_date(p, "Jan 5 2024")
+            assert r["warning"] == "Value 'Jan 5 2024' does not match the expected date format %Y-%m-%d."
+            assert get_frontmatter(p)["frontmatter"]["date"] == "Jan 5 2024"
+        finally:
+            os.unlink(p)
+
+    def test_wrong_type_is_rejected_without_a_warning(self):
+        p = _create_md({"date": "2024-01-01"})
+        try:
+            r = set_date(p, 20240101)  # type: ignore[arg-type]
+            assert "error" in r
+            assert "warning" not in r
+            assert get_frontmatter(p)["frontmatter"]["date"] == "2024-01-01"
+        finally:
+            os.unlink(p)
+
+    def test_other_setters_never_warn(self):
+        p = _create_md({})
+        try:
+            assert "warning" not in set_title(p, "Jan 5 2024")
+            assert "warning" not in set_description(p, "not a date")
         finally:
             os.unlink(p)
 
@@ -163,7 +191,17 @@ class TestSetPublishDate:
         try:
             r = set_publish_date(p, "2025-07-01")
             assert r["new_value"] == "2025-07-01"
+            assert "warning" not in r
             assert get_frontmatter(p)["frontmatter"]["publishDate"] == "2025-07-01"
+        finally:
+            os.unlink(p)
+
+    def test_warns_for_invalid_format_after_writing(self):
+        p = _create_md({})
+        try:
+            r = set_publish_date(p, "20204-01-01")
+            assert r["warning"] == "Value '20204-01-01' does not match the expected date format %Y-%m-%d."
+            assert get_frontmatter(p)["frontmatter"]["publishDate"] == "20204-01-01"
         finally:
             os.unlink(p)
 

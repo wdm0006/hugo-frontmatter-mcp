@@ -19,6 +19,8 @@ from yaml import YAMLError  # To catch parsing errors specifically
 
 mcp_server = FastMCP("HugoFrontmatterMCP")
 
+_EXPECTED_DATE_FORMAT = "%Y-%m-%d"
+
 # --- Helper Functions ---
 
 
@@ -122,16 +124,34 @@ def set_title(file_path: str, title: str) -> Dict[str, Any]:
     return _set_specific_field(file_path, "title", title, str)
 
 
+def _warn_on_unexpected_date_format(result: Dict[str, Any], value: str) -> Dict[str, Any]:
+    """Adds a non-blocking 'warning' to a successful setter result when value isn't YYYY-MM-DD.
+
+    The value is never rejected or altered — Hugo accepts date formats this check does not
+    enumerate, so this is advisory feedback only, using the same predicate as
+    validate_date_formats.
+    """
+    if "error" in result:
+        return result
+    try:
+        dt.strptime(value, _EXPECTED_DATE_FORMAT)
+    except ValueError:
+        result["warning"] = f"Value '{value}' does not match the expected date format {_EXPECTED_DATE_FORMAT}."
+    return result
+
+
 @mcp_server.tool()
 def set_date(file_path: str, date_value: str) -> Dict[str, Any]:
     """Sets the 'date' (string, e.g., YYYY-MM-DD) in the frontmatter. Expects an absolute file path."""
-    return _set_specific_field(file_path, "date", date_value, str)
+    return _warn_on_unexpected_date_format(_set_specific_field(file_path, "date", date_value, str), date_value)
 
 
 @mcp_server.tool()
 def set_publish_date(file_path: str, publish_date_value: str) -> Dict[str, Any]:
     """Sets the 'publishDate' (string, e.g., YYYY-MM-DD) in the frontmatter. Expects an absolute file path."""
-    return _set_specific_field(file_path, "publishDate", publish_date_value, str)
+    return _warn_on_unexpected_date_format(
+        _set_specific_field(file_path, "publishDate", publish_date_value, str), publish_date_value
+    )
 
 
 @mcp_server.tool()
