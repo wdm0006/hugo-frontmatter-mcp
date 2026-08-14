@@ -403,6 +403,15 @@ def rename_tag_in_directory(
     file_pattern = "**/*.md" if recursive else "*.md"
 
     for md_file_path_obj in directory_path.glob(file_pattern):
+        if md_file_path_obj.is_symlink():
+            files_scanned += 1
+            individual_errors.append(
+                {
+                    "error": "Skipped symlink: writing through it could modify a file outside the directory.",
+                    "file_path": str(md_file_path_obj),
+                }
+            )
+            continue
         if md_file_path_obj.is_file():
             files_scanned += 1
             post, load_error = _load_post(str(md_file_path_obj))
