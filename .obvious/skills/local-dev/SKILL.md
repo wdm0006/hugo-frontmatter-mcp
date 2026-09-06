@@ -49,14 +49,14 @@ import asyncio
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 
+
 async def main():
-    transport = StdioTransport("uv", ["run", "hugo_frontmatter_mcp.py"],
-                               cwd="/home/user/work/hugo-frontmatter-mcp")
+    transport = StdioTransport("uv", ["run", "hugo_frontmatter_mcp.py"], cwd="/home/user/work/hugo-frontmatter-mcp")
     async with Client(transport) as client:
-        tools = await client.list_tools()          # expect 15 tools
-        r = await client.call_tool("get_frontmatter",
-                                   {"file_path": "/abs/path/post.md"})
+        tools = await client.list_tools()  # expect 15 tools
+        r = await client.call_tool("get_frontmatter", {"file_path": "/abs/path/post.md"})
         print(r.data)
+
 
 asyncio.run(main())
 ```
