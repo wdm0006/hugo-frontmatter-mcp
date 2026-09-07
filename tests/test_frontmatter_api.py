@@ -1,5 +1,6 @@
 import os
 import pathlib
+import re
 import tempfile
 
 import frontmatter
@@ -384,8 +385,8 @@ class TestListTagsInDirectory:
             ]
         )
         bad = os.path.join(d, "broken.md")
-        with open(bad, "w") as f:
-            f.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
+        with open(bad, "w") as handle:
+            handle.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
         try:
             r = list_tags_in_directory(d)
             # Valid file is still counted correctly.
@@ -447,8 +448,8 @@ class TestFindPostsByTag:
             ]
         )
         bad = os.path.join(d, "broken.md")
-        with open(bad, "w") as f:
-            f.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
+        with open(bad, "w") as handle:
+            handle.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
         try:
             r = find_posts_by_tag(d, "python")
             # Valid matching file is still found.
@@ -578,6 +579,30 @@ class TestValidateDateFormats:
 # ---------------------------------------------------------------------------
 # Entry point (stdio transport keeps stdout reserved for JSON-RPC)
 # ---------------------------------------------------------------------------
+
+
+class TestScriptHeaderParity:
+    """The PEP 723 header and pyproject must pin fastmcp identically.
+
+    `uv run hugo_frontmatter_mcp.py` resolves dependencies from the inline
+    header, while pip/uvx installs resolve from pyproject — a drift between
+    them means the two entry points run different fastmcp majors.
+    """
+
+    def test_pep723_fastmcp_pin_matches_pyproject(self):
+        module_path = pathlib.Path(hugo_frontmatter_mcp.__file__).resolve()
+        script = module_path.read_text()
+
+        header = re.search(r"# /// script\n(.*?)# ///", script, re.DOTALL)
+        assert header, "PEP 723 script header missing"
+
+        header_reqs = re.findall(r'"(fastmcp[^"]*)"', header.group(1))
+        pyproject_text = (module_path.parent / "pyproject.toml").read_text()
+        pyproject_reqs = re.findall(r'"(fastmcp[^"]*)"', pyproject_text)
+
+        assert header_reqs, "no fastmcp requirement in PEP 723 header"
+        assert pyproject_reqs, "no fastmcp requirement in pyproject"
+        assert header_reqs == pyproject_reqs
 
 
 class TestMain:

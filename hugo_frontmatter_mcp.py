@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # dependencies = [
-#   "fastmcp>=2.14.0,<3.0.0",
+#   "fastmcp>=3.4.5,<4.0.0",
 #   "python-frontmatter>=1.0.0,<2.0.0"
 # ]
 # ///
@@ -89,7 +89,7 @@ def get_field(file_path: str, field_name: str) -> Dict[str, Any]:
 
 
 def _set_specific_field(
-    file_path: str, field_name: str, field_value: Any, expected_type: type = None
+    file_path: str, field_name: str, field_value: Any, expected_type: Optional[type] = None
 ) -> Dict[str, Any]:
     """Internal helper to set a specific field after type checking."""
     if expected_type is not None and not isinstance(field_value, expected_type):
@@ -303,7 +303,7 @@ def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> D
     if not directory_path.is_dir():
         return {"error": f"Directory not found: {directory_path_str}", "directory_path": directory_path_str}
 
-    tag_counter = Counter()
+    tag_counter: Counter[str] = Counter()
     file_pattern = "**/*.md" if recursive else "*.md"
     files_processed = 0
     files_with_tags = 0

@@ -4,7 +4,7 @@ VENV_DIR = .venv
 UV = uv
 
 install:
-	$(UV) venv $(VENV_DIR) --seed
+	@if [ ! -d "$(VENV_DIR)" ]; then $(UV) venv $(VENV_DIR) --seed; fi
 	$(UV) pip install -e ".[dev]"
 
 lint: install
