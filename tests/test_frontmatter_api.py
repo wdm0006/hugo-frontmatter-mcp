@@ -1,8 +1,11 @@
 import os
 import pathlib
+import re
 import tempfile
 
 import frontmatter
+import pytest
+import yaml
 
 import hugo_frontmatter_mcp
 from hugo_frontmatter_mcp import (
@@ -373,6 +376,32 @@ class TestListTagsInDirectory:
                 f.unlink()
             os.rmdir(d)
 
+    def test_counts_comma_separated_bare_string_tags(self):
+        d = _create_md_dir([({"tags": "tech, python"}, "post")])
+        try:
+            r = list_tags_in_directory(d)
+            assert r["files_with_tags"] == 1
+            assert r["tag_counts"] == {"tech": 1, "python": 1}
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_reports_non_string_tags_in_list(self):
+        d = _create_md_dir([({"tags": [123, "python"]}, "post")])
+        try:
+            r = list_tags_in_directory(d)
+            # String tags still count...
+            assert r["tag_counts"] == {"python": 1}
+            # ...and the non-string tag is reported instead of silently skipped.
+            assert len(r["errors"]) == 1
+            assert "non-string" in r["errors"][0]["error"]
+            assert r["errors"][0]["file_path"] == os.path.join(d, "post0.md")
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
     def test_missing_dir_error(self):
         r = list_tags_in_directory("/tmp/nonexistent_dir_abc123")
         assert "error" in r
@@ -384,8 +413,8 @@ class TestListTagsInDirectory:
             ]
         )
         bad = os.path.join(d, "broken.md")
-        with open(bad, "w") as f:
-            f.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
+        with open(bad, "w") as handle:
+            handle.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
         try:
             r = list_tags_in_directory(d)
             # Valid file is still counted correctly.
@@ -440,6 +469,16 @@ class TestFindPostsByTag:
                 f.unlink()
             os.rmdir(d)
 
+    def test_finds_tag_within_comma_separated_bare_string(self):
+        d = _create_md_dir([({"tags": "tech, python"}, "post")])
+        try:
+            r = find_posts_by_tag(d, "python")
+            assert r["matching_files"] == [os.path.join(d, "post0.md")]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
     def test_reports_malformed_files(self):
         d = _create_md_dir(
             [
@@ -447,8 +486,8 @@ class TestFindPostsByTag:
             ]
         )
         bad = os.path.join(d, "broken.md")
-        with open(bad, "w") as f:
-            f.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
+        with open(bad, "w") as handle:
+            handle.write("---\ntags: [unclosed\ntitle: broken\n---\nbody\n")
         try:
             r = find_posts_by_tag(d, "python")
             # Valid matching file is still found.
@@ -509,6 +548,96 @@ class TestRenameTagInDirectory:
         try:
             r = rename_tag_in_directory(d, "a", "a")
             assert "same" in r.get("message", "").lower()
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_renames_simple_bare_string_tag(self):
+        d = _create_md_dir([({"tags": "old"}, "p1")])
+        try:
+            r = rename_tag_in_directory(d, "old", "new")
+            assert r["modified_files"] == [os.path.join(d, "post0.md")]
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            assert post.metadata["tags"] == ["new"]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_renames_comma_separated_bare_string_tags(self):
+        # Previously silent: the fuzzy prefilter matched but the exact-equality
+        # rename never fired, so "tech, python" was never touched.
+        d = _create_md_dir([({"tags": "tech, python"}, "p1")])
+        try:
+            r = rename_tag_in_directory(d, "tech", "development")
+            assert r["modified_files"] == [os.path.join(d, "post0.md")]
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            # New tag is appended after the remaining tags, matching the
+            # list-valued rename behavior.
+            assert post.metadata["tags"] == ["python", "development"]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_comma_separated_rename_targets_only_requested_tag(self):
+        d = _create_md_dir([({"tags": "tech, python"}, "p1")])
+        try:
+            r = rename_tag_in_directory(d, "python", "code")
+            assert r["modified_files"] == [os.path.join(d, "post0.md")]
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            assert post.metadata["tags"] == ["tech", "code"]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_dry_run_reports_without_writing(self):
+        d = _create_md_dir([({"tags": ["old"]}, "p1"), ({"tags": ["keep"]}, "p2")])
+        try:
+            before = {f.name: f.read_bytes() for f in pathlib.Path(d).glob("*.md")}
+
+            r = rename_tag_in_directory(d, "old", "new", dry_run=True)
+
+            assert r["dry_run"] is True
+            assert r["modified_files"] == [os.path.join(d, "post0.md")]
+            after = {f.name: f.read_bytes() for f in pathlib.Path(d).glob("*.md")}
+            assert after == before
+
+            # The real rename still applies afterwards.
+            r2 = rename_tag_in_directory(d, "old", "new")
+            assert r2["dry_run"] is False
+            assert r2["modified_files"] == [os.path.join(d, "post0.md")]
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            assert post.metadata["tags"] == ["new"]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_reports_malformed_tags_type_instead_of_silent_skip(self):
+        d = _create_md_dir([({"tags": 42}, "p1")])
+        try:
+            r = rename_tag_in_directory(d, "old", "new")
+            assert r["modified_files"] == []
+            assert len(r["errors"]) == 1
+            assert "not a list or string" in r["errors"][0]["error"]
+            assert r["errors"][0]["file_path"] == os.path.join(d, "post0.md")
+            # The file is untouched.
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            assert post.metadata["tags"] == 42
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_files_without_tags_are_not_errors(self):
+        d = _create_md_dir([({"title": "no tags"}, "p1"), ({"tags": ["old"]}, "p2")])
+        try:
+            r = rename_tag_in_directory(d, "old", "new")
+            assert r["modified_files"] == [os.path.join(d, "post1.md")]
+            assert r["errors"] == []
         finally:
             for f in pathlib.Path(d).glob("*.md"):
                 f.unlink()
@@ -580,10 +709,283 @@ class TestValidateDateFormats:
 # ---------------------------------------------------------------------------
 
 
+class TestScriptHeaderParity:
+    """The PEP 723 header and pyproject must pin fastmcp identically.
+
+    `uv run hugo_frontmatter_mcp.py` resolves dependencies from the inline
+    header, while pip/uvx installs resolve from pyproject — a drift between
+    them means the two entry points run different fastmcp majors.
+    """
+
+    def test_pep723_fastmcp_pin_matches_pyproject(self):
+        module_path = pathlib.Path(hugo_frontmatter_mcp.__file__).resolve()
+        script = module_path.read_text()
+
+        header = re.search(r"# /// script\n(.*?)# ///", script, re.DOTALL)
+        assert header, "PEP 723 script header missing"
+
+        header_reqs = re.findall(r'"(fastmcp[^"]*)"', header.group(1))
+        pyproject_text = (module_path.parent / "pyproject.toml").read_text()
+        pyproject_reqs = re.findall(r'"(fastmcp[^"]*)"', pyproject_text)
+
+        assert header_reqs, "no fastmcp requirement in PEP 723 header"
+        assert pyproject_reqs, "no fastmcp requirement in pyproject"
+        assert header_reqs == pyproject_reqs
+
+
 class TestMain:
     def test_startup_message_goes_to_stderr(self, monkeypatch, capsys):
         monkeypatch.setattr(hugo_frontmatter_mcp.mcp_server, "run", lambda: None)
         main()
         captured = capsys.readouterr()
         assert captured.out == ""
-        assert "Starting Hugo Frontmatter MCP server" in captured.err
+        # Exact text: the banner is documented operator feedback, not an
+        # implementation detail (mutation testing flagged weak matching here).
+        assert captured.err == "Starting Hugo Frontmatter MCP server. Expects absolute paths.\n"
+
+
+# ---------------------------------------------------------------------------
+# Result-contract hardening
+#
+# Every error result carries an "error" message that names the offending
+# path, plus a "file_path" key; every success result echoes the inputs it
+# acted on. These tests pin that contract exactly so silent mutations of
+# dict keys or interpolated exception text fail loudly.
+# ---------------------------------------------------------------------------
+
+
+class TestLoadPostErrorContract:
+    """_load_post error dicts carry error + file_path with the real cause."""
+
+    def test_relative_path_error_names_the_path(self):
+        r = get_frontmatter("relative/path.md")
+        assert r == {"error": "Path must be absolute: relative/path.md", "file_path": "relative/path.md"}
+
+    def test_missing_file_error_names_the_path(self):
+        r = get_frontmatter("/tmp/nonexistent_file_abc123.md")
+        assert r == {
+            "error": "File not found: /tmp/nonexistent_file_abc123.md",
+            "file_path": "/tmp/nonexistent_file_abc123.md",
+        }
+
+    def test_yaml_parse_error_embeds_the_parser_message(self, tmp_path: pathlib.Path):
+        p = tmp_path / "bad.md"
+        p.write_text("---\ntitle: [unclosed\n---\nbody\n")
+        with pytest.raises(yaml.YAMLError) as excinfo:
+            frontmatter.load(p)
+        r = get_frontmatter(str(p))
+        assert r["error"] == f"YAML parsing error in frontmatter: {excinfo.value}"
+        assert r["file_path"] == str(p)
+
+    def test_generic_load_failure_embeds_the_exception(self, monkeypatch):
+        p = _create_md({"title": "T"})
+        try:
+
+            def boom(*args, **kwargs):
+                raise RuntimeError("boom")
+
+            monkeypatch.setattr(hugo_frontmatter_mcp.frontmatter, "load", boom)
+            r = get_frontmatter(p)
+            assert r == {"error": "Failed to load or parse file: boom", "file_path": p}
+        finally:
+            os.unlink(p)
+
+    def test_file_not_found_during_load(self, monkeypatch):
+        p = _create_md({"title": "T"})
+        try:
+
+            def gone(*args, **kwargs):
+                raise FileNotFoundError(p)
+
+            monkeypatch.setattr(hugo_frontmatter_mcp.frontmatter, "load", gone)
+            r = get_frontmatter(p)
+            assert r == {"error": f"File not found during load: {p}", "file_path": p}
+        finally:
+            os.unlink(p)
+
+    def test_none_post_guard(self, monkeypatch):
+        p = _create_md({"title": "T"})
+        try:
+            monkeypatch.setattr(hugo_frontmatter_mcp, "_load_post", lambda path: (None, None))
+            r = get_frontmatter(p)
+            assert r == {"error": "Unknown error loading post", "file_path": p}
+        finally:
+            os.unlink(p)
+
+
+class TestSavePostErrorContract:
+    """_save_post failure dicts report the write failure with its cause."""
+
+    def test_relative_path_error_names_the_path(self):
+        post = frontmatter.loads("---\ntitle: T\n---\nbody\n")
+        r = hugo_frontmatter_mcp._save_post("relative/path.md", post)
+        assert r == {
+            "error": "Path for saving must be absolute: relative/path.md",
+            "file_path": "relative/path.md",
+        }
+
+    def test_ioerror_on_dump_is_reported(self, monkeypatch):
+        p = _create_md({"title": "T"})
+        try:
+
+            def disk_full(*args, **kwargs):
+                raise IOError("disk full")
+
+            monkeypatch.setattr(hugo_frontmatter_mcp.frontmatter, "dump", disk_full)
+            r = set_title(p, "New Title")
+            assert r["error"] == "Failed to write file: disk full"
+            assert r["file_path"] == p
+        finally:
+            os.unlink(p)
+
+    def test_generic_save_error_is_reported(self, monkeypatch):
+        p = _create_md({"title": "T"})
+        try:
+
+            def kaboom(*args, **kwargs):
+                raise RuntimeError("kaboom")
+
+            monkeypatch.setattr(hugo_frontmatter_mcp.frontmatter, "dump", kaboom)
+            r = set_title(p, "New Title")
+            assert r["error"] == "An unexpected error occurred while saving: kaboom"
+            assert r["file_path"] == p
+        finally:
+            os.unlink(p)
+
+
+class TestModifyListFieldContract:
+    """add/remove results and errors echo the full acted-on contract."""
+
+    def test_scalar_string_tags_are_coerced_to_a_list(self):
+        p = _create_md({"tags": "tech"})
+        try:
+            r = add_tag(p, "python")
+            assert "added" in r["message"]
+            fm = get_frontmatter(p)["frontmatter"]
+            assert fm["tags"] == ["tech", "python"]
+        finally:
+            os.unlink(p)
+
+    def test_non_list_non_string_tags_are_rejected(self):
+        p = _create_md({"tags": 42})
+        try:
+            r = add_tag(p, "python")
+            assert r["error"] == "Field 'tags' exists but is not a list (type: int). Cannot modify."
+            assert r["file_path"] == p
+        finally:
+            os.unlink(p)
+
+    def test_invalid_action_is_rejected(self):
+        p = _create_md({"tags": ["a"]})
+        try:
+            r = hugo_frontmatter_mcp._modify_list_field("bogus", p, "tags", "x")
+            assert r == {"error": "Invalid action for _modify_list_field", "file_path": p}
+        finally:
+            os.unlink(p)
+
+    def test_add_duplicate_returns_exact_result(self):
+        p = _create_md({"tags": ["python"]})
+        try:
+            r = add_tag(p, "python")
+            assert r == {
+                "message": "Item 'python' already exists in 'tags'. No changes made.",
+                "file_path": p,
+                "tags": ["python"],
+                "updated_frontmatter": {"tags": ["python"]},
+            }
+        finally:
+            os.unlink(p)
+
+    def test_remove_missing_returns_exact_result(self):
+        p = _create_md({"tags": ["a"]})
+        try:
+            r = remove_tag(p, "z")
+            assert r == {
+                "message": "Item 'z' not found in 'tags'. No changes made.",
+                "file_path": p,
+                "tags": ["a"],
+                "updated_frontmatter": {"tags": ["a"]},
+            }
+        finally:
+            os.unlink(p)
+
+    def test_add_success_returns_exact_result(self):
+        p = _create_md({"tags": ["python"]})
+        try:
+            r = add_tag(p, "mcp")
+            assert r == {
+                "file_path": p,
+                "field_name": "tags",
+                "action": "add",
+                "item_value": "mcp",
+                "message": "Item 'mcp' added for field 'tags'. File saved.",
+                "updated_frontmatter": {"tags": ["python", "mcp"]},
+            }
+        finally:
+            os.unlink(p)
+
+    def test_remove_success_returns_exact_result(self):
+        p = _create_md({"tags": ["a", "b", "c"]})
+        try:
+            r = remove_tag(p, "b")
+            assert r == {
+                "file_path": p,
+                "field_name": "tags",
+                "action": "remove",
+                "item_value": "b",
+                "message": "Item 'b' removed for field 'tags'. File saved.",
+                "updated_frontmatter": {"tags": ["a", "c"]},
+            }
+        finally:
+            os.unlink(p)
+
+
+class TestSetSpecificFieldContract:
+    """set_* results and errors echo the full acted-on contract."""
+
+    def test_wrong_type_error_is_exact(self):
+        p = _create_md({"draft": True})
+        try:
+            r = set_draft_status(p, "yes")  # type: ignore[arg-type]
+            assert r == {
+                "error": "Value for 'draft' must be of type bool. Got str.",
+                "file_path": p,
+            }
+        finally:
+            os.unlink(p)
+
+    def test_none_post_guard(self, monkeypatch):
+        p = _create_md({"title": "T"})
+        try:
+            monkeypatch.setattr(hugo_frontmatter_mcp, "_load_post", lambda path: (None, None))
+            r = set_title(p, "X")
+            assert r == {"error": "Unknown error loading post, post object is None.", "file_path": p}
+        finally:
+            os.unlink(p)
+
+    def test_success_returns_exact_result(self):
+        p = _create_md({"title": "Old"})
+        try:
+            r = set_title(p, "New Title")
+            assert r == {
+                "file_path": p,
+                "field_name": "title",
+                "new_value": "New Title",
+                "message": "Field 'title' updated and file saved successfully.",
+                "updated_frontmatter": {"title": "New Title"},
+            }
+        finally:
+            os.unlink(p)
+
+
+class TestModifyListFieldPostNoneGuard:
+    """The post-None guard fires when _load_post returns no post and no error."""
+
+    def test_none_post_guard(self, monkeypatch):
+        p = _create_md({"title": "T"})
+        try:
+            monkeypatch.setattr(hugo_frontmatter_mcp, "_load_post", lambda path: (None, None))
+            r = add_tag(p, "x")
+            assert r == {"error": "Unknown error loading post", "file_path": p}
+        finally:
+            os.unlink(p)

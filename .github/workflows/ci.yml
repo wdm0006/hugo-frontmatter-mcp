@@ -27,6 +27,24 @@ jobs:
       - run: uv pip install -e ".[dev]"
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      # Same ruff version as the pre-commit hook (v0.16.6) and the dev extra.
+      - name: pre-commit (all files)
+        run: uv run pre-commit run --all-files
+
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv venv .venv
+      - run: uv pip install -e ".[dev]"
+      - run: uv run mypy .
 
   test:
     runs-on: ubuntu-latest
@@ -44,4 +62,5 @@ jobs:
           enable-cache: true
       - run: uv venv .venv
       - run: uv pip install -e ".[dev]"
-      - run: uv run pytest tests/ -v
+      # Coverage floor + timeout guard; floor set at the measured post-change value.
+      - run: uv run pytest -v --cov=hugo_frontmatter_mcp --cov-report=term-missing --cov-fail-under=90

@@ -4,7 +4,7 @@ VENV_DIR = .venv
 UV = uv
 
 install:
-	$(UV) venv $(VENV_DIR) --seed
+	@if [ ! -d "$(VENV_DIR)" ]; then $(UV) venv $(VENV_DIR) --seed; fi
 	$(UV) pip install -e ".[dev]"
 
 lint: install
@@ -20,7 +20,7 @@ format-check: install
 	$(UV) run ruff format --check .
 
 test: install
-	$(UV) run pytest tests/
+	$(UV) run pytest tests/ --cov=hugo_frontmatter_mcp --cov-report=term-missing --cov-fail-under=90
 
 clean:
 	rm -rf $(VENV_DIR)

@@ -61,10 +61,32 @@ The following tools are available:
 - `add_image(file_path, image_path_to_add)` / `remove_image(file_path, image_path_to_remove)` – Add/remove images
 - `list_tags_in_directory(directory_path_str, recursive=True)` – List all tags in a directory
 - `find_posts_by_tag(directory_path_str, tag_to_find, recursive=True)` – Find posts with a specific tag
-- `rename_tag_in_directory(directory_path_str, old_tag, new_tag, recursive=True)` – Rename a tag across posts
+- `rename_tag_in_directory(directory_path_str, old_tag, new_tag, recursive=True, dry_run=False)` – Rename a tag across posts. With `dry_run=True` the tool reports the files it *would* modify without writing anything
 - `validate_date_formats(directory_path_str, field_name="date", expected_format_str="%Y-%m-%d", recursive=True)` – Validate date formats
 
 All file and directory paths must be absolute.
+
+### Tag semantics
+
+A `tags` field can be a YAML list or a bare comma-separated string — both are handled
+identically by the batch tools: `tags: "tech, python"` and `tags: [tech, python]` both
+count, find, and rename as two tags. Files whose `tags` value is neither a list nor a
+string are reported as errors rather than silently skipped.
+
+## Development
+
+```bash
+make install          # idempotent: creates .venv only if missing, then syncs dev deps
+make lint             # ruff check + format check
+make typecheck        # mypy
+make test             # pytest with coverage floor (90%) and a 60s per-test timeout
+```
+
+Quality gates, all enforced in CI: ruff (via pre-commit), mypy, pytest with a
+`--cov-fail-under` coverage floor, and a mutmut 3.7.0 mutation campaign over
+`hugo_frontmatter_mcp.py` (`uv run mutmut run`). Surviving mutants are either killed
+by a named test or recorded with a classification in
+[docs/mutation-waivers.md](docs/mutation-waivers.md).
 
 ## License
 

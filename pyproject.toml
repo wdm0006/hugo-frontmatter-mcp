@@ -21,9 +21,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "ruff",
+    "ruff==0.16.6",
     "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "mypy",
+    "types-PyYAML",
     "pre-commit",
+    "mutmut==3.7.0",
 ]
 
 [project.scripts]
@@ -35,6 +40,7 @@ hugo-frontmatter-mcp = "hugo_frontmatter_mcp:main"
 
 [tool.ruff]
 line-length = 120
+extend-exclude = ["mutants"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "C", "B"]
@@ -42,3 +48,22 @@ ignore = ["E501", "C901"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Coverage floor lives in the CI/Makefile pytest invocations (not addopts) so
+# mutation runs measure test strength, not the coverage gate itself.
+addopts = "--timeout=60"
+
+[tool.mypy]
+python_version = "3.10"
+check_untyped_defs = true
+exclude = ['mutants', '\.venv']
+
+[[tool.mypy.overrides]]
+# python-frontmatter ships no type stubs or py.typed marker.
+module = ["frontmatter", "frontmatter.*"]
+ignore_missing_imports = true
+
+[tool.mutmut]
+source_paths = ["hugo_frontmatter_mcp.py"]
