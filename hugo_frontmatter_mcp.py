@@ -286,11 +286,17 @@ def remove_image(file_path: str, image_path_to_remove: str) -> Dict[str, Any]:
 
 
 def _tags_as_list(metadata: Dict[str, Any]) -> list:
+    """Returns the 'tags' field as a list.
+
+    A bare-string tags value is parsed as comma-separated tags so the three
+    batch tools agree on semantics: "tech, python" yields ["tech", "python"].
+    Non-list, non-string values yield [].
+    """
     tags = metadata.get("tags")
     if isinstance(tags, list):
         return tags
-    if isinstance(tags, str) and tags.strip():
-        return [tags]
+    if isinstance(tags, str):
+        return [tag.strip() for tag in tags.split(",") if tag.strip()]
     return []
 
 
@@ -326,7 +332,12 @@ def list_tags_in_directory(directory_path_str: str, recursive: bool = True) -> D
                     if isinstance(tag, str):
                         tag_counter[tag] += 1
                     else:
-                        pass
+                        errors.append(
+                            {
+                                "error": f"Ignored non-string tag {tag!r} (type: {type(tag).__name__}) while counting.",
+                                "file_path": str(md_file_path_obj),
+                            }
+                        )
 
     return {
         "directory_path": directory_path_str,

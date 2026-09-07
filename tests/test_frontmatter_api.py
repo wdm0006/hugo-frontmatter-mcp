@@ -374,6 +374,32 @@ class TestListTagsInDirectory:
                 f.unlink()
             os.rmdir(d)
 
+    def test_counts_comma_separated_bare_string_tags(self):
+        d = _create_md_dir([({"tags": "tech, python"}, "post")])
+        try:
+            r = list_tags_in_directory(d)
+            assert r["files_with_tags"] == 1
+            assert r["tag_counts"] == {"tech": 1, "python": 1}
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_reports_non_string_tags_in_list(self):
+        d = _create_md_dir([({"tags": [123, "python"]}, "post")])
+        try:
+            r = list_tags_in_directory(d)
+            # String tags still count...
+            assert r["tag_counts"] == {"python": 1}
+            # ...and the non-string tag is reported instead of silently skipped.
+            assert len(r["errors"]) == 1
+            assert "non-string" in r["errors"][0]["error"]
+            assert r["errors"][0]["file_path"] == os.path.join(d, "post0.md")
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
     def test_missing_dir_error(self):
         r = list_tags_in_directory("/tmp/nonexistent_dir_abc123")
         assert "error" in r
@@ -433,6 +459,16 @@ class TestFindPostsByTag:
 
     def test_finds_post_with_bare_string_tag(self):
         d = _create_md_dir([({"tags": "python"}, "post")])
+        try:
+            r = find_posts_by_tag(d, "python")
+            assert r["matching_files"] == [os.path.join(d, "post0.md")]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_finds_tag_within_comma_separated_bare_string(self):
+        d = _create_md_dir([({"tags": "tech, python"}, "post")])
         try:
             r = find_posts_by_tag(d, "python")
             assert r["matching_files"] == [os.path.join(d, "post0.md")]
