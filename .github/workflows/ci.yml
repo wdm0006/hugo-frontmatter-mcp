@@ -62,5 +62,5 @@ jobs:
           enable-cache: true
       - run: uv venv .venv
       - run: uv pip install -e ".[dev]"
-      # addopts enforces the coverage floor and pytest-timeout guard.
-      - run: uv run pytest -v
+      # Coverage floor + timeout guard; floor set at the measured post-change value.
+      - run: uv run pytest -v --cov=hugo_frontmatter_mcp --cov-report=term-missing --cov-fail-under=90
