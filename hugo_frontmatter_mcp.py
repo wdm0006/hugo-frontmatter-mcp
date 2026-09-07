@@ -389,9 +389,14 @@ def find_posts_by_tag(directory_path_str: str, tag_to_find: str, recursive: bool
 
 @mcp_server.tool()
 def rename_tag_in_directory(
-    directory_path_str: str, old_tag: str, new_tag: str, recursive: bool = True
+    directory_path_str: str, old_tag: str, new_tag: str, recursive: bool = True, dry_run: bool = False
 ) -> Dict[str, Any]:
-    """Renames a tag in all posts within a directory. Expects absolute paths for directory and tags as non-empty strings."""
+    """Renames a tag in all posts within a directory. Expects absolute paths for directory and tags as non-empty strings.
+
+    Bare-string tags are parsed as comma-separated values, so a file with
+    'tags: "tech, python"' renames both tags. With dry_run=True no files are
+    written; modified_files lists what would have changed.
+    """
     directory_path = pathlib.Path(directory_path_str)
     if not directory_path.is_absolute():
         return {"error": f"Directory path must be absolute: {directory_path_str}"}
@@ -431,29 +436,33 @@ def rename_tag_in_directory(
                 individual_errors.append(load_error)
                 continue
 
-            if post and isinstance(post.metadata.get("tags"), list):
-                tags_list = post.metadata["tags"]
-                made_change = False
-                if old_tag in tags_list:
-                    # Remove all instances of old_tag and add new_tag if not present
-                    tags_list = [t for t in tags_list if t != old_tag]
-                    if new_tag not in tags_list:
-                        tags_list.append(new_tag)
-                    post.metadata["tags"] = tags_list
-                    made_change = True
+            if not post:
+                continue
 
-                if made_change:
+            tags_value = post.metadata.get("tags")
+            if tags_value is None:
+                continue  # No tags field: nothing to rename here.
+            if not isinstance(tags_value, (list, str)):
+                individual_errors.append(
+                    {
+                        "error": f"Skipped file: 'tags' is not a list or string (type: {type(tags_value).__name__}).",
+                        "file_path": str(md_file_path_obj),
+                    }
+                )
+                continue
+
+            tags_list = _tags_as_list(post.metadata)
+            if old_tag in tags_list:
+                new_tags = [t for t in tags_list if t != old_tag]
+                if new_tag not in new_tags:
+                    new_tags.append(new_tag)
+                post.metadata["tags"] = new_tags
+                if dry_run:
+                    modified_files_paths.append(str(md_file_path_obj))
+                else:
                     save_error = _save_post(str(md_file_path_obj), post)
                     if save_error:
                         save_error["file_path"] = str(md_file_path_obj)
-                        individual_errors.append(save_error)
-                    else:
-                        modified_files_paths.append(str(md_file_path_obj))
-            elif post and old_tag in str(post.metadata.get("tags", "")):  # Handle single tag as string
-                if post.metadata.get("tags") == old_tag:
-                    post.metadata["tags"] = [new_tag]
-                    save_error = _save_post(str(md_file_path_obj), post)
-                    if save_error:
                         individual_errors.append(save_error)
                     else:
                         modified_files_paths.append(str(md_file_path_obj))
@@ -463,6 +472,7 @@ def rename_tag_in_directory(
         "old_tag": old_tag,
         "new_tag": new_tag,
         "recursive": recursive,
+        "dry_run": dry_run,
         "files_scanned": files_scanned,
         "modified_files": modified_files_paths,
         "errors": individual_errors,

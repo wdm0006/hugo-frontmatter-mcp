@@ -551,6 +551,96 @@ class TestRenameTagInDirectory:
                 f.unlink()
             os.rmdir(d)
 
+    def test_renames_simple_bare_string_tag(self):
+        d = _create_md_dir([({"tags": "old"}, "p1")])
+        try:
+            r = rename_tag_in_directory(d, "old", "new")
+            assert r["modified_files"] == [os.path.join(d, "post0.md")]
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            assert post.metadata["tags"] == ["new"]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_renames_comma_separated_bare_string_tags(self):
+        # Previously silent: the fuzzy prefilter matched but the exact-equality
+        # rename never fired, so "tech, python" was never touched.
+        d = _create_md_dir([({"tags": "tech, python"}, "p1")])
+        try:
+            r = rename_tag_in_directory(d, "tech", "development")
+            assert r["modified_files"] == [os.path.join(d, "post0.md")]
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            # New tag is appended after the remaining tags, matching the
+            # list-valued rename behavior.
+            assert post.metadata["tags"] == ["python", "development"]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_comma_separated_rename_targets_only_requested_tag(self):
+        d = _create_md_dir([({"tags": "tech, python"}, "p1")])
+        try:
+            r = rename_tag_in_directory(d, "python", "code")
+            assert r["modified_files"] == [os.path.join(d, "post0.md")]
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            assert post.metadata["tags"] == ["tech", "code"]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_dry_run_reports_without_writing(self):
+        d = _create_md_dir([({"tags": ["old"]}, "p1"), ({"tags": ["keep"]}, "p2")])
+        try:
+            before = {f.name: f.read_bytes() for f in pathlib.Path(d).glob("*.md")}
+
+            r = rename_tag_in_directory(d, "old", "new", dry_run=True)
+
+            assert r["dry_run"] is True
+            assert r["modified_files"] == [os.path.join(d, "post0.md")]
+            after = {f.name: f.read_bytes() for f in pathlib.Path(d).glob("*.md")}
+            assert after == before
+
+            # The real rename still applies afterwards.
+            r2 = rename_tag_in_directory(d, "old", "new")
+            assert r2["dry_run"] is False
+            assert r2["modified_files"] == [os.path.join(d, "post0.md")]
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            assert post.metadata["tags"] == ["new"]
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_reports_malformed_tags_type_instead_of_silent_skip(self):
+        d = _create_md_dir([({"tags": 42}, "p1")])
+        try:
+            r = rename_tag_in_directory(d, "old", "new")
+            assert r["modified_files"] == []
+            assert len(r["errors"]) == 1
+            assert "not a list or string" in r["errors"][0]["error"]
+            assert r["errors"][0]["file_path"] == os.path.join(d, "post0.md")
+            # The file is untouched.
+            post = frontmatter.load(os.path.join(d, "post0.md"))
+            assert post.metadata["tags"] == 42
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
+    def test_files_without_tags_are_not_errors(self):
+        d = _create_md_dir([({"title": "no tags"}, "p1"), ({"tags": ["old"]}, "p2")])
+        try:
+            r = rename_tag_in_directory(d, "old", "new")
+            assert r["modified_files"] == [os.path.join(d, "post1.md")]
+            assert r["errors"] == []
+        finally:
+            for f in pathlib.Path(d).glob("*.md"):
+                f.unlink()
+            os.rmdir(d)
+
 
 class TestValidateDateFormats:
     def test_native_yaml_date(self, tmp_path):
