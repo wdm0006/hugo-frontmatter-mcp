@@ -1,7 +1,11 @@
 import os
 import pathlib
-import re
 import tempfile
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
 
 import frontmatter
 import pytest
@@ -710,27 +714,27 @@ class TestValidateDateFormats:
 
 
 class TestScriptHeaderParity:
-    """The PEP 723 header and pyproject must pin fastmcp identically.
+    """The PEP 723 header and pyproject must declare the same dependencies.
 
     `uv run hugo_frontmatter_mcp.py` resolves dependencies from the inline
     header, while pip/uvx installs resolve from pyproject — a drift between
-    them means the two entry points run different fastmcp majors.
+    them means the two entry points run different dependency sets.
     """
 
-    def test_pep723_fastmcp_pin_matches_pyproject(self):
+    def test_pep723_dependencies_match_pyproject(self):
         module_path = pathlib.Path(hugo_frontmatter_mcp.__file__).resolve()
-        script = module_path.read_text()
+        lines = module_path.read_text().splitlines()
 
-        header = re.search(r"# /// script\n(.*?)# ///", script, re.DOTALL)
-        assert header, "PEP 723 script header missing"
+        start = lines.index("# /// script")
+        end = lines.index("# ///", start + 1)
+        header = "\n".join(line.removeprefix("# ").removeprefix("#") for line in lines[start + 1 : end])
+        header_deps = tomllib.loads(header)["dependencies"]
 
-        header_reqs = re.findall(r'"(fastmcp[^"]*)"', header.group(1))
-        pyproject_text = (module_path.parent / "pyproject.toml").read_text()
-        pyproject_reqs = re.findall(r'"(fastmcp[^"]*)"', pyproject_text)
+        pyproject = tomllib.loads((module_path.parent / "pyproject.toml").read_text())
+        pyproject_deps = pyproject["project"]["dependencies"]
 
-        assert header_reqs, "no fastmcp requirement in PEP 723 header"
-        assert pyproject_reqs, "no fastmcp requirement in pyproject"
-        assert header_reqs == pyproject_reqs
+        assert header_deps
+        assert sorted(header_deps) == sorted(pyproject_deps)
 
 
 class TestMain:
