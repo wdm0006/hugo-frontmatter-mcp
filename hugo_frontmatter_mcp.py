@@ -8,6 +8,8 @@
 
 import pathlib
 import sys
+import threading
+from _thread import LockType
 from collections import Counter
 from datetime import date
 from datetime import datetime as dt
@@ -20,6 +22,15 @@ from yaml import YAMLError  # To catch parsing errors specifically
 mcp_server = FastMCP("HugoFrontmatterMCP")
 
 _EXPECTED_DATE_FORMAT = "%Y-%m-%d"
+_FILE_LOCKS: Dict[str, LockType] = {}
+_FILE_LOCKS_GUARD = threading.Lock()
+
+
+def _file_lock(file_path: str) -> LockType:
+    resolved_path = str(pathlib.Path(file_path).resolve())
+    with _FILE_LOCKS_GUARD:
+        return _FILE_LOCKS.setdefault(resolved_path, threading.Lock())
+
 
 # --- Helper Functions ---
 
@@ -98,24 +109,25 @@ def _set_specific_field(
             "file_path": file_path,
         }
 
-    post, load_error = _load_post(file_path)
-    if load_error:
-        return load_error
-    if not post:
-        return {"error": "Unknown error loading post, post object is None.", "file_path": file_path}
+    with _file_lock(file_path):
+        post, load_error = _load_post(file_path)
+        if load_error:
+            return load_error
+        if not post:
+            return {"error": "Unknown error loading post, post object is None.", "file_path": file_path}
 
-    post.metadata[field_name] = field_value
-    save_error = _save_post(file_path, post)
-    if save_error:
-        return save_error
+        post.metadata[field_name] = field_value
+        save_error = _save_post(file_path, post)
+        if save_error:
+            return save_error
 
-    return {
-        "file_path": file_path,
-        "field_name": field_name,
-        "new_value": field_value,
-        "message": f"Field '{field_name}' updated and file saved successfully.",
-        "updated_frontmatter": post.metadata,
-    }
+        return {
+            "file_path": file_path,
+            "field_name": field_name,
+            "new_value": field_value,
+            "message": f"Field '{field_name}' updated and file saved successfully.",
+            "updated_frontmatter": post.metadata,
+        }
 
 
 @mcp_server.tool()
@@ -168,72 +180,73 @@ def set_draft_status(file_path: str, draft_status: bool) -> Dict[str, Any]:
 
 def _modify_list_field(action: str, file_path: str, field_name: str, item_value: str) -> Dict[str, Any]:
     """Helper to add or remove an item from a list field (e.g., tags, images)."""
-    post, load_error = _load_post(file_path)
-    if load_error:
-        return load_error
-    if not post:
-        return {"error": "Unknown error loading post", "file_path": file_path}
+    with _file_lock(file_path):
+        post, load_error = _load_post(file_path)
+        if load_error:
+            return load_error
+        if not post:
+            return {"error": "Unknown error loading post", "file_path": file_path}
 
-    current_list = post.metadata.get(field_name)
-    if current_list is None:
-        current_list = []
-    elif not isinstance(current_list, list):
-        if isinstance(current_list, str):
-            current_list = [current_list]
-        else:
-            return {
-                "error": f"Field '{field_name}' exists but is not a list (type: {type(current_list).__name__}). Cannot modify.",
-                "file_path": file_path,
-            }
+        current_list = post.metadata.get(field_name)
+        if current_list is None:
+            current_list = []
+        elif not isinstance(current_list, list):
+            if isinstance(current_list, str):
+                current_list = [current_list]
+            else:
+                return {
+                    "error": f"Field '{field_name}' exists but is not a list (type: {type(current_list).__name__}). Cannot modify.",
+                    "file_path": file_path,
+                }
 
-    made_change = False
-    if action == "add":
-        if item_value not in current_list:
-            current_list.append(item_value)
-            made_change = True
+        made_change = False
+        if action == "add":
+            if item_value not in current_list:
+                current_list.append(item_value)
+                made_change = True
+            else:
+                return {
+                    "message": f"Item '{item_value}' already exists in '{field_name}'. No changes made.",
+                    "file_path": file_path,
+                    field_name: current_list,
+                    "updated_frontmatter": post.metadata,
+                }
+        elif action == "remove":
+            if item_value in current_list:
+                current_list.remove(item_value)
+                made_change = True
+            else:
+                return {
+                    "message": f"Item '{item_value}' not found in '{field_name}'. No changes made.",
+                    "file_path": file_path,
+                    field_name: current_list,
+                    "updated_frontmatter": post.metadata,
+                }
         else:
+            return {"error": "Invalid action for _modify_list_field", "file_path": file_path}
+
+        if not made_change:  # Should be caught by specific messages above, but as a safeguard.
             return {
-                "message": f"Item '{item_value}' already exists in '{field_name}'. No changes made.",
+                "message": "No effective change made.",
                 "file_path": file_path,
                 field_name: current_list,
                 "updated_frontmatter": post.metadata,
             }
-    elif action == "remove":
-        if item_value in current_list:
-            current_list.remove(item_value)
-            made_change = True
-        else:
-            return {
-                "message": f"Item '{item_value}' not found in '{field_name}'. No changes made.",
-                "file_path": file_path,
-                field_name: current_list,
-                "updated_frontmatter": post.metadata,
-            }
-    else:
-        return {"error": "Invalid action for _modify_list_field", "file_path": file_path}
 
-    if not made_change:  # Should be caught by specific messages above, but as a safeguard.
+        post.metadata[field_name] = current_list
+        save_error = _save_post(file_path, post)
+        if save_error:
+            return save_error
+
+        action_verb = "added" if action == "add" else "removed"
         return {
-            "message": "No effective change made.",
             "file_path": file_path,
-            field_name: current_list,
+            "field_name": field_name,
+            "action": action,
+            "item_value": item_value,
+            "message": f"Item '{item_value}' {action_verb} for field '{field_name}'. File saved.",
             "updated_frontmatter": post.metadata,
         }
-
-    post.metadata[field_name] = current_list
-    save_error = _save_post(file_path, post)
-    if save_error:
-        return save_error
-
-    action_verb = "added" if action == "add" else "removed"
-    return {
-        "file_path": file_path,
-        "field_name": field_name,
-        "action": action,
-        "item_value": item_value,
-        "message": f"Item '{item_value}' {action_verb} for field '{field_name}'. File saved.",
-        "updated_frontmatter": post.metadata,
-    }
 
 
 @mcp_server.tool()
@@ -430,42 +443,43 @@ def rename_tag_in_directory(
             continue
         if md_file_path_obj.is_file():
             files_scanned += 1
-            post, load_error = _load_post(str(md_file_path_obj))
-            if load_error:
-                load_error["file_path"] = str(md_file_path_obj)
-                individual_errors.append(load_error)
-                continue
+            with _file_lock(str(md_file_path_obj)):
+                post, load_error = _load_post(str(md_file_path_obj))
+                if load_error:
+                    load_error["file_path"] = str(md_file_path_obj)
+                    individual_errors.append(load_error)
+                    continue
 
-            if not post:
-                continue
+                if not post:
+                    continue
 
-            tags_value = post.metadata.get("tags")
-            if tags_value is None:
-                continue  # No tags field: nothing to rename here.
-            if not isinstance(tags_value, (list, str)):
-                individual_errors.append(
-                    {
-                        "error": f"Skipped file: 'tags' is not a list or string (type: {type(tags_value).__name__}).",
-                        "file_path": str(md_file_path_obj),
-                    }
-                )
-                continue
+                tags_value = post.metadata.get("tags")
+                if tags_value is None:
+                    continue  # No tags field: nothing to rename here.
+                if not isinstance(tags_value, (list, str)):
+                    individual_errors.append(
+                        {
+                            "error": f"Skipped file: 'tags' is not a list or string (type: {type(tags_value).__name__}).",
+                            "file_path": str(md_file_path_obj),
+                        }
+                    )
+                    continue
 
-            tags_list = _tags_as_list(post.metadata)
-            if old_tag in tags_list:
-                new_tags = [t for t in tags_list if t != old_tag]
-                if new_tag not in new_tags:
-                    new_tags.append(new_tag)
-                post.metadata["tags"] = new_tags
-                if dry_run:
-                    modified_files_paths.append(str(md_file_path_obj))
-                else:
-                    save_error = _save_post(str(md_file_path_obj), post)
-                    if save_error:
-                        save_error["file_path"] = str(md_file_path_obj)
-                        individual_errors.append(save_error)
-                    else:
+                tags_list = _tags_as_list(post.metadata)
+                if old_tag in tags_list:
+                    new_tags = [t for t in tags_list if t != old_tag]
+                    if new_tag not in new_tags:
+                        new_tags.append(new_tag)
+                    post.metadata["tags"] = new_tags
+                    if dry_run:
                         modified_files_paths.append(str(md_file_path_obj))
+                    else:
+                        save_error = _save_post(str(md_file_path_obj), post)
+                        if save_error:
+                            save_error["file_path"] = str(md_file_path_obj)
+                            individual_errors.append(save_error)
+                        else:
+                            modified_files_paths.append(str(md_file_path_obj))
 
     return {
         "directory_path": directory_path_str,
