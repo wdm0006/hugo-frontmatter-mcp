@@ -56,7 +56,7 @@ testpaths = ["tests"]
 addopts = "--timeout=60"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 check_untyped_defs = true
 exclude = ['mutants', '\.venv']
 

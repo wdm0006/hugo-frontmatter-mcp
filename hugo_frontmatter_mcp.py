@@ -2,7 +2,8 @@
 # /// script
 # dependencies = [
 #   "fastmcp>=3.4.5,<4.0.0",
-#   "python-frontmatter>=1.0.0,<2.0.0"
+#   "python-frontmatter",
+#   "pyyaml"
 # ]
 # ///
 
