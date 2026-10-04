@@ -1,0 +1,7 @@
+# Repo policy for obvious workers.
+# Auto-detected from GitHub repo settings on 2026-09-06:
+#   defaultBranchRef: main; mergeCommitAllowed, squashMergeAllowed, rebaseMergeAllowed all true.
+repo: wdm0006/hugo-frontmatter-mcp
+defaultBranch: main
+mergeMethod: squash
+requireHumanMerge: true
