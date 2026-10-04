@@ -1012,6 +1012,7 @@ class TestAtomicSave:
 
         monkeypatch.setattr(frontmatter, "dumps", boom)
         result = hugo_frontmatter_mcp._save_post(str(f), post)
+        assert result is not None
         assert "error" in result
         assert f.read_bytes() == before
         assert list(tmp_path.glob("*.tmp")) == []
@@ -1027,6 +1028,7 @@ class TestAtomicSave:
 
         monkeypatch.setattr(hugo_frontmatter_mcp.os, "replace", boom)
         result = hugo_frontmatter_mcp._save_post(str(f), post)
+        assert result is not None
         assert "Failed to write file" in result["error"]
         assert f.read_bytes() == before
         assert list(tmp_path.glob("*.tmp")) == []
