@@ -829,14 +829,14 @@ class TestSavePostErrorContract:
             "file_path": "relative/path.md",
         }
 
-    def test_ioerror_on_dump_is_reported(self, monkeypatch):
+    def test_ioerror_on_serialize_is_reported(self, monkeypatch):
         p = _create_md({"title": "T"})
         try:
 
             def disk_full(*args, **kwargs):
                 raise IOError("disk full")
 
-            monkeypatch.setattr(hugo_frontmatter_mcp.frontmatter, "dump", disk_full)
+            monkeypatch.setattr(hugo_frontmatter_mcp.frontmatter, "dumps", disk_full)
             r = set_title(p, "New Title")
             assert r["error"] == "Failed to write file: disk full"
             assert r["file_path"] == p
@@ -850,7 +850,7 @@ class TestSavePostErrorContract:
             def kaboom(*args, **kwargs):
                 raise RuntimeError("kaboom")
 
-            monkeypatch.setattr(hugo_frontmatter_mcp.frontmatter, "dump", kaboom)
+            monkeypatch.setattr(hugo_frontmatter_mcp.frontmatter, "dumps", kaboom)
             r = set_title(p, "New Title")
             assert r["error"] == "An unexpected error occurred while saving: kaboom"
             assert r["file_path"] == p
@@ -994,3 +994,53 @@ class TestModifyListFieldPostNoneGuard:
             assert r == {"error": "Unknown error loading post", "file_path": p}
         finally:
             os.unlink(p)
+
+
+class TestAtomicSave:
+    def _make(self, tmp_path):
+        f = tmp_path / "post.md"
+        f.write_text("---\ntitle: Original\nzeta: 1\nalpha: 2\n---\nBody\n", encoding="utf-8")
+        return f
+
+    def test_failed_serialization_keeps_original(self, tmp_path, monkeypatch):
+        f = self._make(tmp_path)
+        before = f.read_bytes()
+        post = frontmatter.load(str(f))
+
+        def boom(*a, **k):
+            raise RuntimeError("serialize failed")
+
+        monkeypatch.setattr(frontmatter, "dumps", boom)
+        result = hugo_frontmatter_mcp._save_post(str(f), post)
+        assert result is not None
+        assert "error" in result
+        assert f.read_bytes() == before
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_failed_replace_keeps_original_and_cleans_temp(self, tmp_path, monkeypatch):
+        f = self._make(tmp_path)
+        before = f.read_bytes()
+        post = frontmatter.load(str(f))
+        post.metadata["title"] = "Changed"
+
+        def boom(src, dst):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(hugo_frontmatter_mcp.os, "replace", boom)
+        result = hugo_frontmatter_mcp._save_post(str(f), post)
+        assert result is not None
+        assert "Failed to write file" in result["error"]
+        assert f.read_bytes() == before
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_success_preserves_order_and_mode(self, tmp_path):
+        f = self._make(tmp_path)
+        f.chmod(0o644)
+        post = frontmatter.load(str(f))
+        post.metadata["title"] = "New"
+        assert hugo_frontmatter_mcp._save_post(str(f), post) is None
+        text = f.read_text(encoding="utf-8")
+        assert text.index("title") < text.index("zeta") < text.index("alpha")
+        assert "New" in text
+        assert (f.stat().st_mode & 0o777) == 0o644
+        assert list(tmp_path.glob("*.tmp")) == []

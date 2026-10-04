@@ -7,8 +7,11 @@
 # ]
 # ///
 
+import os
 import pathlib
+import stat
 import sys
+import tempfile
 import threading
 from _thread import LockType
 from collections import Counter
@@ -64,9 +67,25 @@ def _save_post(file_path_str: str, post: frontmatter.Post) -> Optional[Dict[str,
     if not file_path.is_absolute():
         return {"error": f"Path for saving must be absolute: {file_path_str}", "file_path": file_path_str}
     try:
-        frontmatter.dump(post, file_path_str, sort_keys=False)
+        data = frontmatter.dumps(post, sort_keys=False).encode("utf-8")
+        target = os.path.realpath(file_path_str)
+        fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(target), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+            try:
+                os.chmod(tmp_path, stat.S_IMODE(os.stat(target).st_mode))
+            except FileNotFoundError:
+                pass
+            os.replace(tmp_path, target)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
         return None
-    except IOError as e:
+    except OSError as e:
         return {"error": f"Failed to write file: {str(e)}", "file_path": file_path_str}
     except Exception as e:
         return {"error": f"An unexpected error occurred while saving: {str(e)}", "file_path": file_path_str}
