@@ -1044,3 +1044,67 @@ class TestAtomicSave:
         assert "New" in text
         assert (f.stat().st_mode & 0o777) == 0o644
         assert list(tmp_path.glob("*.tmp")) == []
+
+
+TOML_ERROR = "TOML frontmatter (+++) is not supported; only YAML (---) frontmatter can be read or edited"
+JSON_ERROR = "JSON frontmatter is not supported; only YAML (---) frontmatter can be read or edited"
+TOML_TEXT = '+++\ntitle = "A"\ndraft = true\ntags = ["x"]\n+++\nbody\n'
+JSON_TEXT = '{\n  "title": "A"\n}\nbody\n'
+
+
+class TestNonYamlFrontmatterRefused:
+    def _file(self, tmp_path: pathlib.Path, text: str = TOML_TEXT) -> pathlib.Path:
+        p = tmp_path / "post.md"
+        p.write_bytes(text.encode("utf-8"))
+        return p
+
+    def test_reads_return_error(self, tmp_path: pathlib.Path):
+        p = self._file(tmp_path)
+        expected = {"error": TOML_ERROR, "file_path": str(p)}
+        assert get_frontmatter(str(p)) == expected
+        assert get_field(str(p), "title") == expected
+
+    def test_json_block_refused(self, tmp_path: pathlib.Path):
+        p = self._file(tmp_path, JSON_TEXT)
+        assert get_frontmatter(str(p)) == {"error": JSON_ERROR, "file_path": str(p)}
+
+    def test_bom_prefixed_toml_refused(self, tmp_path: pathlib.Path):
+        p = self._file(tmp_path, "﻿" + TOML_TEXT)
+        assert get_frontmatter(str(p)) == {"error": TOML_ERROR, "file_path": str(p)}
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda p: set_title(p, "B"),
+            lambda p: set_date(p, "2024-01-01"),
+            lambda p: set_publish_date(p, "2024-01-01"),
+            lambda p: set_description(p, "d"),
+            lambda p: set_draft_status(p, False),
+            lambda p: add_tag(p, "t"),
+            lambda p: remove_tag(p, "x"),
+            lambda p: add_image(p, "i.png"),
+            lambda p: remove_image(p, "i.png"),
+        ],
+    )
+    def test_writes_error_and_leave_file_byte_identical(self, tmp_path: pathlib.Path, call):
+        p = self._file(tmp_path)
+        before = p.read_bytes()
+        assert call(str(p)) == {"error": TOML_ERROR, "file_path": str(p)}
+        assert p.read_bytes() == before
+
+    def test_batch_tools_report_file_in_errors(self, tmp_path: pathlib.Path):
+        p = self._file(tmp_path)
+        (tmp_path / "ok.md").write_text("---\ntitle: T\ntags: [x]\ndate: nope\n---\nb\n")
+        err = {"error": TOML_ERROR, "file_path": str(p)}
+        assert list_tags_in_directory(str(tmp_path))["errors"] == [err]
+        assert find_posts_by_tag(str(tmp_path), "x")["errors"] == [err]
+        entries = validate_date_formats(str(tmp_path))["invalid_date_entries"]
+        assert {"file_path": str(p), "value": "N/A - Load Error", "error": f"File load error: {TOML_ERROR}"} in entries
+
+    def test_rename_reports_and_does_not_modify(self, tmp_path: pathlib.Path):
+        p = self._file(tmp_path)
+        before = p.read_bytes()
+        r = rename_tag_in_directory(str(tmp_path), "x", "y", dry_run=False)
+        assert r["errors"] == [{"error": TOML_ERROR, "file_path": str(p)}]
+        assert r["modified_files"] == []
+        assert p.read_bytes() == before

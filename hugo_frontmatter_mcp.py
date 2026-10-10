@@ -49,6 +49,18 @@ def _load_post(file_path_str: str) -> Tuple[Optional[frontmatter.Post], Optional
     if not file_path.is_file():
         return None, {"error": f"File not found: {file_path_str}", "file_path": file_path_str}
     try:
+        with open(file_path, encoding="utf-8") as fh:
+            head = fh.read(4).lstrip("\ufeff")
+        if head.startswith("+++"):
+            return None, {
+                "error": "TOML frontmatter (+++) is not supported; only YAML (---) frontmatter can be read or edited",
+                "file_path": file_path_str,
+            }
+        if head.startswith("{"):
+            return None, {
+                "error": "JSON frontmatter is not supported; only YAML (---) frontmatter can be read or edited",
+                "file_path": file_path_str,
+            }
         post = frontmatter.load(file_path)
         return post, None
     except FileNotFoundError:
