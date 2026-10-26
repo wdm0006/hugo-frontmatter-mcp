@@ -1,6 +1,6 @@
 # Hugo Frontmatter MCP
 
-[![smithery badge](https://smithery.ai/badge/@wdm0006/hugo-frontmatter-mcp)](https://smithery.ai/server/@wdm0006/hugo-frontmatter-mcp)
+[![LightNow capabilities](https://lightnow.ai/badge/io.github.wdm0006/hugo-frontmatter-mcp)](https://lightnow.ai/servers/io.github.wdm0006/hugo-frontmatter-mcp)
 
 A Model Context Protocol (MCP) server for managing and automating frontmatter operations in [Hugo](https://gohugo.io/) Markdown files. This tool provides a set of programmatic APIs for reading, updating, and validating YAML frontmatter fields, as well as batch operations for tags, images, and date formats across directories.
 
